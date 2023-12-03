@@ -1,3 +1,5 @@
+use std::{fs, path::Path};
+
 fn find_first(s: &str) -> i32 {
     for c in s.chars() {
         if c >= '0' && c <= '9' {
@@ -27,7 +29,11 @@ fn calculate_sum_calibrations(lines: Vec<&str>) -> i32 {
 }
 
 fn main() {
-    println!("todo later");
+    let input_path = Path::new("inputs/day01_1.txt");
+    let content = fs::read_to_string(input_path).expect("missing file for day 1");
+    let splitted: Vec<&str> = content.split_whitespace().collect();
+    let result = calculate_sum_calibrations(splitted);
+    println!("day01_1 {}", result);
 }
 
 mod tests {
