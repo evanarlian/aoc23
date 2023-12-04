@@ -92,6 +92,6 @@ mod test {
             "zoneight234",
             "7pqrstsixteen",
         ];
-        assert_eq!(solve(input), 281);
+        assert_eq!(solve(&input), 281);
     }
 }
