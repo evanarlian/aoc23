@@ -1,63 +1,108 @@
-use std::{fs, path::Path, vec};
+use std::{cmp, collections::HashSet, fs, path::Path, vec};
 
+/// Seed-related ///
+struct Seed {
+    start: i64,
+    end: i64,
+}
+struct SeedBlock {
+    seeds: Vec<Seed>,
+}
+impl SeedBlock {
+    fn get_interesting_points(&self) -> HashSet<i64> {
+        self.seeds.iter().flat_map(|s| [s.start, s.end]).collect()
+    }
+    fn is_valid_seed(&self, seed: i64) -> bool {
+        for s in self.seeds.iter() {
+            if s.start <= seed && seed <= s.end {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+/// Mapper-related ///
 struct Mapper {
-    dest: i64,
-    source: i64,
-    range: i64,
+    source_start: i64,
+    source_end: i64,
+    dest_start: i64,
+    dest_end: i64,
 }
 struct MapperBlock {
     mappers: Vec<Mapper>,
 }
-
 impl MapperBlock {
-    // notes:
-    // `&self` is just simplification of
-    // `self: &Self` which is also simplification of
-    // `self: &MapperBlock`
     fn remap(&self, x: i64) -> i64 {
-        for mapper in &self.mappers {
-            // example source 98, dest 50, range 2 is (98, 99) -> (50, 51)
-            if mapper.source <= x && x < mapper.source + mapper.range {
-                let diff = x - mapper.source;
-                return mapper.dest + diff;
+        for mapper in self.mappers.iter() {
+            if mapper.source_start <= x && x <= mapper.source_end {
+                let diff = x - mapper.source_start;
+                return mapper.dest_start + diff;
             }
         }
-        return x; // unmapped, just return original
+        return x;
+    }
+    fn inverse_remap(&self, x: i64) -> i64 {
+        for mapper in self.mappers.iter().rev() {
+            if mapper.dest_start <= x && x <= mapper.dest_end {
+                let diff = x - mapper.dest_start;
+                return mapper.source_start + diff;
+            }
+        }
+        return x;
+    }
+    fn get_interesting_points(&self) -> HashSet<i64> {
+        self.mappers
+            .iter()
+            .flat_map(|m| [m.source_start, m.source_end])
+            .collect()
     }
 }
-
 struct MapperPipeline {
     mapper_blocks: Vec<MapperBlock>,
 }
-
 impl MapperPipeline {
-    fn get_last(&self, x: i64) -> i64 {
+    fn get_location(&self, x: i64) -> i64 {
         let mut result = x;
-        for block in &self.mapper_blocks {
+        for block in self.mapper_blocks.iter() {
             result = block.remap(result);
         }
         return result;
     }
+    fn get_seed(&self, x: i64) -> i64 {
+        let mut result = x;
+        for block in self.mapper_blocks.iter().rev() {
+            result = block.inverse_remap(result);
+        }
+        return result;
+    }
+    fn run(&self, initial_seed: &HashSet<i64>) -> HashSet<i64> {
+        let mut unique_over_time = initial_seed.clone();
+        for block in self.mapper_blocks.iter() {
+            unique_over_time.extend(block.get_interesting_points());
+            unique_over_time = unique_over_time.iter().map(|x| block.remap(*x)).collect();
+        }
+        return unique_over_time;
+    }
 }
 
-fn parse_seed(seed_string: &str) -> Vec<i64> {
-    let mut seeds = vec![];
-    for (seed, range) in seed_string
-        .split_once(":")
-        .unwrap()
-        .1
-        .trim()
-        .split_whitespace()
-        .map(|num| num.parse().unwrap())
-        .collect::<Vec<i64>>()
-        .chunks(2)
-        .map(|chunk| (chunk[0], chunk[1]))
-    {
-        for i in 0..range {
-            seeds.push(seed + i);
-        }
+fn parse_seed(seed_string: &str) -> SeedBlock {
+    SeedBlock {
+        seeds: seed_string
+            .split_once(":")
+            .unwrap()
+            .1
+            .trim()
+            .split_whitespace()
+            .map(|num| num.parse().unwrap())
+            .collect::<Vec<i64>>()
+            .chunks(2)
+            .map(|chunk| Seed {
+                start: chunk[0],
+                end: chunk[0] + chunk[1] - 1,
+            })
+            .collect(),
     }
-    return seeds;
 }
 
 fn parse_mapper(mapper_string: &str) -> MapperPipeline {
@@ -71,10 +116,14 @@ fn parse_mapper(mapper_string: &str) -> MapperPipeline {
                 let mut temp_iter = mapper_string
                     .split_whitespace()
                     .map(|num| num.parse::<i64>().unwrap());
+                let dest = temp_iter.next().unwrap();
+                let source = temp_iter.next().unwrap();
+                let range = temp_iter.next().unwrap();
                 Mapper {
-                    dest: temp_iter.next().unwrap(),
-                    source: temp_iter.next().unwrap(),
-                    range: temp_iter.next().unwrap(),
+                    source_start: source,
+                    source_end: source + range - 1,
+                    dest_start: dest,
+                    dest_end: dest + range - 1,
                 }
             })
             .collect();
@@ -87,20 +136,30 @@ fn parse_mapper(mapper_string: &str) -> MapperPipeline {
 
 fn solve(content: String) -> i64 {
     let (seed_string, mapper_string) = content.split_once("\n\n").unwrap();
-    let seeds = parse_seed(seed_string);
+    let seed_block = parse_seed(seed_string);
     let pipeline = parse_mapper(mapper_string);
-    return seeds
-        .iter()
-        .map(|seed| pipeline.get_last(*seed))
-        .min()
-        .unwrap();
+    let initial_seed = seed_block.get_interesting_points();
+    let interesting_pts = pipeline.run(&initial_seed);
+    // how we have all interesting points, just keep track of the min value
+    let mut minimum_location = 999999999999999i64;
+    for pts in interesting_pts {
+        let maybe_seed = pipeline.get_seed(pts);
+        if seed_block.is_valid_seed(maybe_seed) {
+            minimum_location = cmp::min(minimum_location, pts);
+        }
+    }
+    return minimum_location; //37384986
 }
 
 fn main() {
+    // the main idea is to only keep track of the edge points because the extreme values will be one of the edges
+    // get all edges point from the seed, then adding the start ranges for every blocks, put all of them to the
+    // transfomation rules, and repeat. At the end you will have those interesting points. Reverse and check if
+    // that location points back to valid seed while keeping track of the min location.
     let content = fs::read_to_string(Path::new("inputs/day05_2.txt"))
-        .expect("input for day 5 part 1 is missing");
+        .expect("input for day 5 part 2 is missing");
     let result = solve(content);
-    println!("day 5 part 1: {}", result);
+    println!("day 5 part 2: {}", result);
 }
 
 #[cfg(test)]
