@@ -140,7 +140,7 @@ fn solve(content: String) -> i64 {
     let pipeline = parse_mapper(mapper_string);
     let initial_seed = seed_block.get_interesting_points();
     let interesting_pts = pipeline.run(&initial_seed);
-    // how we have all interesting points, just keep track of the min value
+    // now we have all interesting points, just keep track of the min value
     let mut minimum_location = 999999999999999i64;
     for pts in interesting_pts {
         let maybe_seed = pipeline.get_seed(pts);
@@ -148,7 +148,7 @@ fn solve(content: String) -> i64 {
             minimum_location = cmp::min(minimum_location, pts);
         }
     }
-    return minimum_location; //37384986
+    return minimum_location;
 }
 
 fn main() {
