@@ -156,8 +156,8 @@ fn main() {
     // get all edges point from the seed, then adding the start ranges for every blocks, put all of them to the
     // transfomation rules, and repeat. At the end you will have those interesting points. Reverse and check if
     // that location points back to valid seed while keeping track of the min location.
-    let content = fs::read_to_string(Path::new("inputs/day05_2.txt"))
-        .expect("input for day 5 part 2 is missing");
+    let content = fs::read_to_string(Path::new("inputs/day05.txt"))
+        .expect("input for day 5 is missing");
     let result = solve(content);
     println!("day 5 part 2: {}", result);
 }

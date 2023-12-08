@@ -72,8 +72,8 @@ fn solve(lines: &Vec<&str>) -> i32 {
 }
 
 fn main() {
-    let filepath = Path::new("inputs/day01_2.txt");
-    let content = fs::read_to_string(filepath).expect("day 1 part 2 file not found");
+    let filepath = Path::new("inputs/day01.txt");
+    let content = fs::read_to_string(filepath).expect("day 1 file not found");
     let lines = content.split_whitespace().collect();
     let result = solve(&lines);
     println!("day 1 part 2: {}", result);

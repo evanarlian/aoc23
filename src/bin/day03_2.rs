@@ -139,8 +139,8 @@ fn solve(engine: String) -> i32 {
 }
 
 fn main() {
-    let content = fs::read_to_string(Path::new("inputs/day03_2.txt"))
-        .expect("input for day 3 part 2 is missing");
+    let content = fs::read_to_string(Path::new("inputs/day03.txt"))
+        .expect("input for day 3 is missing");
     let result = solve(content);
     println!("day 3 part 2: {}", result);
 }

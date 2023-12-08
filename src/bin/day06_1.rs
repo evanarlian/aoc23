@@ -60,8 +60,8 @@ fn solve(content: String) -> i32 {
 }
 
 fn main() {
-    let content = fs::read_to_string(Path::new("inputs/day06_1.txt"))
-        .expect("input for day 6 part 1 is missing");
+    let content = fs::read_to_string(Path::new("inputs/day06.txt"))
+        .expect("input for day 6 is missing");
     let result = solve(content);
     println!("day 6 part 1: {}", result);
 }

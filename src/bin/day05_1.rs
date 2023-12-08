@@ -88,8 +88,8 @@ fn solve(content: String) -> i64 {
 }
 
 fn main() {
-    let content = fs::read_to_string(Path::new("inputs/day05_1.txt"))
-        .expect("input for day 5 part 1 is missing");
+    let content = fs::read_to_string(Path::new("inputs/day05.txt"))
+        .expect("input for day 5 is missing");
     let result = solve(content);
     println!("day 5 part 1: {}", result);
 }

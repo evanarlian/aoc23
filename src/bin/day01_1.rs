@@ -29,11 +29,11 @@ fn calculate_sum_calibrations(lines: Vec<&str>) -> i32 {
 }
 
 fn main() {
-    let input_path = Path::new("inputs/day01_1.txt");
+    let input_path = Path::new("inputs/day01.txt");
     let content = fs::read_to_string(input_path).expect("missing file for day 1");
     let splitted: Vec<&str> = content.split_whitespace().collect();
     let result = calculate_sum_calibrations(splitted);
-    println!("day01_1 {}", result);
+    println!("day 1 part 1: {}", result);
 }
 
 mod tests {

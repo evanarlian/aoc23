@@ -35,8 +35,8 @@ fn solve(games: String, red: i32, green: i32, blue: i32) -> i32 {
 }
 
 fn main() {
-    let input_path = Path::new("inputs/day02_1.txt");
-    let content = fs::read_to_string(input_path).expect("input for day 2 part 1 is missing");
+    let input_path = Path::new("inputs/day02.txt");
+    let content = fs::read_to_string(input_path).expect("input for day 2 is missing");
     let result = solve(content, 12, 13, 14);
     println!("day 2 part 1: {}", result);
 }
