@@ -33,7 +33,7 @@ fn solve(content: &String) -> i32 {
 
 fn main() {
     let content =
-        fs::read_to_string(Path::new("inputs/day08.txt")).expect("input for day 8 part 1 is missing.");
+        fs::read_to_string(Path::new("inputs/day08.txt")).expect("input for day 8 is missing.");
     let result = solve(&content);
     println!("day 8 part 1: {}", result);
 }
