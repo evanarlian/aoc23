@@ -11,7 +11,7 @@ fn parse(content: &String) -> Vec<Vec<i32>> {
         .collect()
 }
 
-fn predict(nums: &Vec<i32>) -> i32 {
+fn predict_rightmost(nums: &Vec<i32>) -> i32 {
     // idk man i felt that recursive algo is very natural
     if nums.iter().all(|&x| x == 0) {
         // this assumes that eventually vectors will be all 0 before running out of elements
@@ -21,7 +21,7 @@ fn predict(nums: &Vec<i32>) -> i32 {
     for (a, b) in nums.iter().zip(nums.iter().skip(1)) {
         diff.push(b - a);
     }
-    let predicted = predict(&diff);
+    let predicted = predict_rightmost(&diff);
     return diff.last().unwrap() + predicted;
 }
 
@@ -29,7 +29,7 @@ fn solve(content: &String) -> i32 {
     let nums_list = parse(content);
     nums_list
         .iter()
-        .map(|nums| nums.last().unwrap() + predict(nums))
+        .map(|nums| nums.last().unwrap() + predict_rightmost(nums))
         .sum()
 }
 
