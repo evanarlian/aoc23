@@ -145,10 +145,10 @@ fn bfs(pipes: &Vec<Vec<char>>, starting_coord: Coord) -> i32 {
                 || new_x >= pipes[0].len() as i32
             {
                 continue;
-                // visit checks
             }
             let (new_y, new_x) = (new_y as usize, new_x as usize);
             let new_coord = Coord { y: new_y, x: new_x };
+            // visit checks
             if visited.contains(&new_coord) {
                 continue;
             }
