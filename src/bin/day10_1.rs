@@ -89,7 +89,6 @@ fn debug_print(debug: &Vec<Vec<i32>>) {
         })
         .max()
         .unwrap();
-    println!("{}", biggest_ndigits);
     for row in debug {
         for &num in row {
             let what = if num == -1 {
@@ -161,7 +160,7 @@ fn bfs(pipes: &Vec<Vec<char>>, starting_coord: Coord) -> i32 {
             queue.push_back((new_coord, dist + 1));
         }
     }
-    // debug_print(&debug);  // toggle for nice array output
+    // debug_print(&debug); // toggle for nice array output
     return farthest;
 }
 
