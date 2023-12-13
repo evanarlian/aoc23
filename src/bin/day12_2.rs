@@ -9,7 +9,7 @@ enum Block {
     Unk,
 }
 
-fn parse(content: &String) -> Vec<(Vec<Block>, Vec<i32>)> {
+fn parse(content: &String, copies: usize) -> Vec<(Vec<Block>, Vec<i32>)> {
     let mut parsed = vec![];
     for line in content.lines() {
         let (field, truth) = line.split_once(" ").unwrap();
@@ -28,16 +28,15 @@ fn parse(content: &String) -> Vec<(Vec<Block>, Vec<i32>)> {
             .map(|num| num.parse().unwrap())
             .collect::<Vec<_>>();
         // add the twist (repeated)
-        let mut blocks5 = vec![];
-        for i in 0..5 {
-            blocks5.extend(blocks.clone());
-            if i < 4 {
-                blocks5.push(Block::Unk);
+        let mut blocks_copied = vec![];
+        for i in 0..copies {
+            blocks_copied.extend(blocks.clone());
+            if i < copies - 1 {
+                blocks_copied.push(Block::Unk);
             }
         }
-        let truths5 = [&truths[..]; 5].concat();
-        parsed.push((blocks5, truths5));
-        // parsed.push((blocks, truths));
+        let truths_copied = vec![&truths[..]; copies].concat();
+        parsed.push((blocks_copied, truths_copied));
     }
     return parsed;
 }
@@ -128,6 +127,10 @@ fn find_combinations(
     // find the next available position
     let mut i = start_at;
     let max_possible_index = blocks.len() - curr_truth;
+    // check memo here?
+    if memo.contains_key(&(level, start_at)) {
+        return memo[&(level, start_at)];
+    }
     while i <= max_possible_index {
         // find the first operational block that is on your way (if any)
         if let Some(index) = blocks
@@ -156,20 +159,22 @@ fn find_combinations(
         // move to the next spot
         i += 1;
     }
+    // memoize here if not found
+    memo.insert((level, start_at), total_so_far);
     return total_so_far;
 }
 
-fn solve(content: &String) -> i32 {
-    let parsed = parse(content);
+fn solve(content: &String, copies: usize) -> i32 {
+    let parsed = parse(content, copies);
     let mut total = 0;
-    for (blocks, truths) in parsed.iter() {
-        // println!("{:?}", blocks);
-        // println!("{:?}", truths);
+    for (i, (blocks, truths)) in parsed.iter().enumerate() {
+        println!("{:?}", blocks);
+        println!("{:?}", truths);
         let mut buffer = blocks.iter().copied().collect::<Vec<_>>();
         // we introduce memoization that maps (ith-truths/level, position) to how many iterations under that
         let mut memo = HashMap::new();
         let temp = find_combinations(blocks, truths, &mut buffer, 0, 0, &mut memo);
-        println!("{}", temp);
+        println!("[{}] {}", i, temp);
         total += temp;
     }
     return total;
@@ -177,8 +182,8 @@ fn solve(content: &String) -> i32 {
 
 fn main() {
     let content = fs::read_to_string("inputs/day12.txt").expect("input for day 12 is missing");
-    let result = solve(&content);
-    println!("day 12 part 1: {}", result);
+    let result = solve(&content, 5);
+    println!("day 12 part 2: {}", result);
 }
 
 #[cfg(test)]
@@ -195,21 +200,25 @@ mod tests {
 ????.######..#####. 1,6,5
 ?###???????? 3,2,1",
         );
-        let result = solve(&content);
+        let result = solve(&content, 5);
         assert_eq!(result, 525152);
     }
 
-    // #[test]
-    // fn test2() {
-    //     let content = String::from("?#?#?#?#?#?#?#? 1,3,1,6");
-    //     let result = solve(&content);
-    //     assert_eq!(result, 1);
-    // }
+    #[test]
+    fn test_fast() {
+        let content = String::from(
+            "???.### 1,1,3
+????.#...#... 4,1,1
+????.######..#####. 1,6,5",
+        );
+        let result = solve(&content, 5);
+        assert_eq!(result, 2517);
+    }
 
-    // #[test]
-    // fn test3() {
-    //     let content = String::from("?###???????? 3,2,1");
-    //     let result = solve(&content);
-    //     assert_eq!(result, 506250);
-    // }
+    #[test]
+    fn test_weird() {
+        let content = String::from("?##?????? 2,1,1");
+        let result = solve(&content, 2);
+        assert_eq!(result, 60);
+    }
 }
