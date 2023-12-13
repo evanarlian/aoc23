@@ -9,7 +9,7 @@ enum Block {
     Unk,
 }
 
-fn parse(content: &String, copies: usize) -> Vec<(Vec<Block>, Vec<i32>)> {
+fn parse(content: &String, copies: usize) -> Vec<(Vec<Block>, Vec<i64>)> {
     let mut parsed = vec![];
     for line in content.lines() {
         let (field, truth) = line.split_once(" ").unwrap();
@@ -41,7 +41,7 @@ fn parse(content: &String, copies: usize) -> Vec<(Vec<Block>, Vec<i32>)> {
     return parsed;
 }
 
-fn early_group_check(buffer: &Vec<Block>, truths: &Vec<i32>, n_completed: usize) -> bool {
+fn early_group_check(buffer: &Vec<Block>, truths: &Vec<i64>, n_completed: usize) -> bool {
     // the idea:
     // 1. you must have at least n_completed blocks
     // example (n_completed=3)
@@ -69,7 +69,7 @@ fn early_group_check(buffer: &Vec<Block>, truths: &Vec<i32>, n_completed: usize)
         .group_by(|&k| k)
         .into_iter()
         .filter_map(|(item, group)| match item {
-            Block::Dmg => Some(group.count() as i32),
+            Block::Dmg => Some(group.count() as i64),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -92,12 +92,15 @@ fn early_group_check(buffer: &Vec<Block>, truths: &Vec<i32>, n_completed: usize)
 
 fn find_combinations(
     blocks: &Vec<Block>,
-    truths: &Vec<i32>,
+    truths: &Vec<i64>,
     buffer: &mut Vec<Block>,
     level: usize,
     start_at: usize,
-    memo: &mut HashMap<(usize, usize), i32>,
-) -> i32 {
+    memo: &mut HashMap<(usize, usize), i64>,
+) -> i64 {
+    // 012345678901234
+    // ##??.#??##??.#? 2,1,2,1
+    // ^^   ^  ^^   ^
     // when to backtrack
     let damaged_groups = buffer
         .iter()
@@ -105,7 +108,7 @@ fn find_combinations(
         .group_by(|&k| k)
         .into_iter()
         .filter_map(|(item, group)| match item {
-            Block::Dmg => Some(group.count() as i32),
+            Block::Dmg => Some(group.count() as i64),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -132,6 +135,7 @@ fn find_combinations(
         return memo[&(level, start_at)];
     }
     while i <= max_possible_index {
+        // println!("level:{level} ct:{curr_truth} i:{i} startat:{start_at}");
         // find the first operational block that is on your way (if any)
         if let Some(index) = blocks
             .iter()
@@ -148,10 +152,8 @@ fn find_combinations(
             buffer[j] = Block::Dmg;
         }
         // RECUR
-        let from_below =
+        total_so_far +=
             find_combinations(blocks, truths, buffer, level + 1, i + curr_truth + 1, memo);
-        memo.insert((level + 1, i + curr_truth + 1), from_below);
-        total_so_far += from_below;
         // restore to the original "paint"
         for j in i..i + curr_truth {
             buffer[j] = blocks[j];
@@ -159,22 +161,27 @@ fn find_combinations(
         // move to the next spot
         i += 1;
     }
-    // memoize here if not found
-    memo.insert((level, start_at), total_so_far);
+    // memoize only meaningful score (nonzero)
+    if total_so_far > 0 {
+        memo.insert((level, start_at), total_so_far);
+    }
     return total_so_far;
 }
 
-fn solve(content: &String, copies: usize) -> i32 {
+fn solve(content: &String, copies: usize) -> i64 {
     let parsed = parse(content, copies);
     let mut total = 0;
     for (i, (blocks, truths)) in parsed.iter().enumerate() {
-        println!("{:?}", blocks);
-        println!("{:?}", truths);
+        // println!("{:?}", blocks);
+        // println!("{:?}", truths);
         let mut buffer = blocks.iter().copied().collect::<Vec<_>>();
         // we introduce memoization that maps (ith-truths/level, position) to how many iterations under that
         let mut memo = HashMap::new();
         let temp = find_combinations(blocks, truths, &mut buffer, 0, 0, &mut memo);
         println!("[{}] {}", i, temp);
+        // for (k, v) in memo {
+        //     println!("{k:?}\t{v}")
+        // }
         total += temp;
     }
     return total;
@@ -192,6 +199,20 @@ mod tests {
 
     #[test]
     fn test1() {
+        let content = String::from(
+            "???.### 1,1,3
+.??..??...?##. 1,1,3
+?#?#?#?#?#?#?#? 1,3,1,6
+????.#...#... 4,1,1
+????.######..#####. 1,6,5
+?###???????? 3,2,1",
+        );
+        let result = solve(&content, 1);
+        assert_eq!(result, 21);
+    }
+
+    #[test]
+    fn test2() {
         let content = String::from(
             "???.### 1,1,3
 .??..??...?##. 1,1,3
@@ -220,5 +241,16 @@ mod tests {
         let content = String::from("?##?????? 2,1,1");
         let result = solve(&content, 2);
         assert_eq!(result, 60);
+    }
+
+    #[test]
+    fn test_weird2() {
+        // let content = String::from("??###??##?????.#? 10,1");
+        // let result = solve(&content, 2);
+        // ##??.#??##??.#? 2,1,2,1
+        // ^^   ^  ^^   ^
+        let content = String::from("##??.#? 2,1");
+        let result = solve(&content, 2);
+        assert_eq!(result, 1);
     }
 }
