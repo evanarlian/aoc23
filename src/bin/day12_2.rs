@@ -1,7 +1,8 @@
 // complete rewrite of part 1, now using proper top down DP
 // huge thanks to: https://www.reddit.com/r/adventofcode/comments/18hbbxe/2023_day_12python_stepbystep_tutorial_with_bonus/
+// TODO my question: why is this (on debug build) slower than python implementation?
 
-use std::{collections::HashMap, fs, hash::BuildHasherDefault};
+use std::{collections::HashMap, fs};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Block {
