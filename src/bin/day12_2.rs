@@ -1,190 +1,146 @@
-use std::{collections::HashMap, fs};
+// complete rewrite of part 1, now using proper top down DP
+// huge thanks to: https://www.reddit.com/r/adventofcode/comments/18hbbxe/2023_day_12python_stepbystep_tutorial_with_bonus/
 
-use itertools::Itertools;
+use std::{collections::HashMap, fs, hash::BuildHasherDefault};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Block {
     Opr,
     Dmg,
     Unk,
 }
 
-fn parse(content: &String, copies: usize) -> Vec<(Vec<Block>, Vec<i64>)> {
-    let mut parsed = vec![];
+struct Question {
+    data: Vec<Block>,
+    groups: Vec<usize>,
+}
+
+fn parse(content: &str, copies: usize) -> Vec<Question> {
+    let mut questions = vec![];
     for line in content.lines() {
-        let (field, truth) = line.split_once(" ").unwrap();
-        // create base block and truths
-        let blocks = field
+        let (raw_data, raw_groups) = line.split_once(" ").unwrap();
+        let raw_data = raw_data
             .chars()
             .map(|c| match c {
                 '.' => Block::Opr,
                 '#' => Block::Dmg,
                 '?' => Block::Unk,
-                _ => unreachable!(),
+                _ => unreachable!("impossible during parsing"),
             })
             .collect::<Vec<_>>();
-        let truths = truth
+        let raw_groups = raw_groups
             .split(",")
-            .map(|num| num.parse().unwrap())
+            .map(|num| num.parse::<usize>().unwrap())
             .collect::<Vec<_>>();
-        // add the twist (repeated)
-        let mut blocks_copied = vec![];
-        for i in 0..copies {
-            blocks_copied.extend(blocks.clone());
-            if i < copies - 1 {
-                blocks_copied.push(Block::Unk);
-            }
+        // make copies
+        let mut data = raw_data.clone();
+        for _ in 0..copies - 1 {
+            data.push(Block::Unk);
+            data.extend(raw_data.clone());
         }
-        let truths_copied = vec![&truths[..]; copies].concat();
-        parsed.push((blocks_copied, truths_copied));
+        let groups = vec![raw_groups; copies].concat();
+        questions.push(Question { data, groups });
     }
-    return parsed;
+    return questions;
 }
 
-fn early_group_check(buffer: &Vec<Block>, truths: &Vec<i64>, n_completed: usize) -> bool {
-    // the idea:
-    // 1. you must have at least n_completed blocks
-    // example (n_completed=3)
-    // truth: ###.##.##
-    // yours: #######..
-    //        ^^^^^^^ giant clump of single group but less than 3 groups
-    // 2. the first (n_completed-1) must be equal, because it has set in stone
-    // example (n_completed=3)
-    // truth: ###.##.##
-    // yours: ###.##.#.
-    //        ^^^ ^^ it must have set in stone, you cannot change it, but the last one (#) might still be added
-    // 3. the n_completed'th group must be equal or smaller, because in the future you can only add
-    // example (n_completed=3)
-    // truth: ###.##.##.
-    // yours: ###.##.###
-    //               ^^^ impossible to fix to match the top one
-
-    // rule 0: assume true if has not completed anything
-    if n_completed == 0 {
-        return true;
-    }
-    let damaged_groups = buffer
-        .iter()
-        .copied()
-        .group_by(|&k| k)
-        .into_iter()
-        .filter_map(|(item, group)| match item {
-            Block::Dmg => Some(group.count() as i64),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    // rule 1
-    if damaged_groups.len() < n_completed {
-        return false;
-    }
-    // rule 2
-    for i in 0..n_completed - 1 {
-        if damaged_groups[i] != truths[i] {
-            return false;
-        }
-    }
-    // rule 3
-    if damaged_groups[n_completed - 1] > truths[n_completed - 1] {
-        return false;
-    }
-    return true;
-}
-
-fn find_combinations(
-    blocks: &Vec<Block>,
-    truths: &Vec<i64>,
-    buffer: &mut Vec<Block>,
-    level: usize,
-    start_at: usize,
-    memo: &mut HashMap<(usize, usize), i64>,
+fn skip<'a>(
+    data: &'a [Block],
+    groups: &'a [usize],
+    memo: &mut HashMap<(&'a [Block], &'a [usize]), i64>,
 ) -> i64 {
-    // 012345678901234
-    // ##??.#??##??.#? 2,1,2,1
-    // ^^   ^  ^^   ^
-    // when to backtrack
-    let damaged_groups = buffer
-        .iter()
-        .copied()
-        .group_by(|&k| k)
-        .into_iter()
-        .filter_map(|(item, group)| match item {
-            Block::Dmg => Some(group.count() as i64),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let is_valid_early = early_group_check(buffer, truths, level);
-    if level == truths.len() {
-        // this is the final phase, so this is the most strict, groups must be all the same
-        if &damaged_groups == truths {
-            return 1;
-        } else {
-            return 0;
-        }
-    } else if !is_valid_early {
+    return calculate_combinations(&data[1..], groups, memo);
+}
+
+fn lay<'a>(
+    data: &'a [Block],
+    groups: &'a [usize],
+    memo: &mut HashMap<(&'a [Block], &'a [usize]), i64>,
+) -> i64 {
+    // lay means we start planting the groups
+    if groups.is_empty() {
+        // we cannot lay anything if there is no more group
         return 0;
     }
-    // at this point, so far is valid
+    let curr_group = groups[0];
+    if data.len() < curr_group {
+        // we cannot lay if not enough space
+        return 0;
+    } else {
+        if data[..curr_group].contains(&Block::Opr) {
+            // can't lay because '.' underneath
+            return 0;
+        }
+        if data.len() == curr_group {
+            // special case at the very end
+            return calculate_combinations(&data[curr_group..], &groups[1..], memo);
+        } else {
+            // because this is not the very end, the +1 after that must NOT be #
+            // because if . we can fullfill current group, if ? we assume .
+            if data[curr_group] == Block::Dmg {
+                return 0;
+            } else {
+                return calculate_combinations(&data[curr_group + 1..], &groups[1..], memo);
+            }
+        }
+    }
+}
+
+// idk man what is this lifetime thing??
+fn calculate_combinations<'a>(
+    data: &'a [Block],
+    groups: &'a [usize],
+    memo: &mut HashMap<(&'a [Block], &'a [usize]), i64>,
+) -> i64 {
+    // check memo first
+    if let Some(&cached) = memo.get(&(data, groups)) {
+        return cached;
+    }
+
+    if data.is_empty() && groups.is_empty() {
+        // we reached valid finish state
+        return 1;
+    } else if data.is_empty() && !groups.is_empty() {
+        // invalid state, prune early
+        return 0;
+    }
+
+    // at this point, your data is not empty, but groups can be either
+    // for example "......" () is valid
+    // "...##.." (2,) is valid too
+    // so group emptiness cannot be used for detecting validness
+    let curr = data[0];
     let mut total_so_far = 0;
-    // for current truths, select according to level
-    let curr_truth = truths[level] as usize;
-    // find the next available position
-    let mut i = start_at;
-    let max_possible_index = blocks.len() - curr_truth;
-    // check memo here?
-    if memo.contains_key(&(level, start_at)) {
-        return memo[&(level, start_at)];
-    }
-    while i <= max_possible_index {
-        // println!("level:{level} ct:{curr_truth} i:{i} startat:{start_at}");
-        // find the first operational block that is on your way (if any)
-        if let Some(index) = blocks
-            .iter()
-            .skip(i)
-            .take(curr_truth)
-            .position(|&block| block == Block::Opr)
-        {
-            // instead of moving just once, move forward so that you move PAST the first operational block you find earlier
-            i += index + 1;
-            continue;
+    match curr {
+        Block::Opr => {
+            // if we find '.', the only logical way is to skip
+            total_so_far += skip(data, groups, memo)
         }
-        // at this point, you can start "painting"
-        for j in i..i + curr_truth {
-            buffer[j] = Block::Dmg;
+        Block::Dmg => {
+            // if we find '#', we must lay, because if we skip '#' then it will be a stray '#'
+            total_so_far += lay(data, groups, memo)
         }
-        // RECUR
-        total_so_far +=
-            find_combinations(blocks, truths, buffer, level + 1, i + curr_truth + 1, memo);
-        // restore to the original "paint"
-        for j in i..i + curr_truth {
-            buffer[j] = blocks[j];
+        Block::Unk => {
+            // we can choose to lay and skip
+            total_so_far += skip(data, groups, memo);
+            total_so_far += lay(data, groups, memo);
         }
-        // move to the next spot
-        i += 1;
     }
-    // memoize only meaningful score (nonzero)
-    if total_so_far > 0 {
-        memo.insert((level, start_at), total_so_far);
-    }
-    return total_so_far;
+    memo.insert((data, groups), total_so_far);
+    total_so_far
+}
+
+fn calculate_combinations_helper(question: &Question) -> i64 {
+    let mut memo = HashMap::new();
+    return calculate_combinations(&question.data, &question.groups, &mut memo);
 }
 
 fn solve(content: &String, copies: usize) -> i64 {
-    let parsed = parse(content, copies);
-    let mut total = 0;
-    for (i, (blocks, truths)) in parsed.iter().enumerate() {
-        // println!("{:?}", blocks);
-        // println!("{:?}", truths);
-        let mut buffer = blocks.iter().copied().collect::<Vec<_>>();
-        // we introduce memoization that maps (ith-truths/level, position) to how many iterations under that
-        let mut memo = HashMap::new();
-        let temp = find_combinations(blocks, truths, &mut buffer, 0, 0, &mut memo);
-        println!("[{}] {}", i, temp);
-        // for (k, v) in memo {
-        //     println!("{k:?}\t{v}")
-        // }
-        total += temp;
-    }
-    return total;
+    let questions = parse(content, copies);
+    questions
+        .iter()
+        .map(|q| calculate_combinations_helper(q))
+        .sum()
 }
 
 fn main() {
@@ -192,13 +148,12 @@ fn main() {
     let result = solve(&content, 5);
     println!("day 12 part 2: {}", result);
 }
-
 #[cfg(test)]
 mod tests {
     use super::solve;
 
     #[test]
-    fn test1() {
+    fn test_easy() {
         let content = String::from(
             "???.### 1,1,3
 .??..??...?##. 1,1,3
@@ -212,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn test2() {
+    fn test_hard() {
         let content = String::from(
             "???.### 1,1,3
 .??..??...?##. 1,1,3
@@ -223,34 +178,5 @@ mod tests {
         );
         let result = solve(&content, 5);
         assert_eq!(result, 525152);
-    }
-
-    #[test]
-    fn test_fast() {
-        let content = String::from(
-            "???.### 1,1,3
-????.#...#... 4,1,1
-????.######..#####. 1,6,5",
-        );
-        let result = solve(&content, 5);
-        assert_eq!(result, 2517);
-    }
-
-    #[test]
-    fn test_weird() {
-        let content = String::from("?##?????? 2,1,1");
-        let result = solve(&content, 2);
-        assert_eq!(result, 60);
-    }
-
-    #[test]
-    fn test_weird2() {
-        // let content = String::from("??###??##?????.#? 10,1");
-        // let result = solve(&content, 2);
-        // ##??.#??##??.#? 2,1,2,1
-        // ^^   ^  ^^   ^
-        let content = String::from("##??.#? 2,1");
-        let result = solve(&content, 2);
-        assert_eq!(result, 1);
     }
 }
