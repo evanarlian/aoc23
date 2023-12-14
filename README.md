@@ -8,3 +8,11 @@ cargo run --bin day05_2
 # print to stdout and turn off multithreading to prevent racing
 cargo test --bin day10_1 -- --nocapture --test-threads=1
 ```
+
+## Notes
+```bash
+# Why is this (debug build) slower than python? Release is a bit faster tho
+time cargo run --bin day12_2
+time cargo run --release --bin day12_2
+time python other/day12_2.py
+```
