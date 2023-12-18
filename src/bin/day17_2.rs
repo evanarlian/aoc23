@@ -4,7 +4,7 @@ use std::{
     fs,
 };
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 enum Dir {
     Start,
     Left,
@@ -34,14 +34,13 @@ impl Dir {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 struct State {
     dir: Dir,
     heatloss: i32,
     consecutive: i32,
     y: i32,
     x: i32,
-    paths: Vec<(i32, i32)>,
 }
 impl PartialOrd for State {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -67,18 +66,8 @@ fn parse(content: &String) -> Vec<Vec<i32>> {
         .collect()
 }
 
-fn debugmap(energy: &Vec<Vec<bool>>) {
-    let mut temp = String::new();
-    for row in energy {
-        for is_energized in row {
-            temp.push(match is_energized {
-                true => '#',
-                false => '.',
-            })
-        }
-        temp.push('\n');
-    }
-    println!("{temp}");
+fn is_safe_bound(h: i32, w: i32, y: i32, x: i32) -> bool {
+    0 <= y && y < h && 0 <= x && x < w
 }
 
 fn dijkstra(heatmap: &Vec<Vec<i32>>) -> Option<i32> {
@@ -89,61 +78,53 @@ fn dijkstra(heatmap: &Vec<Vec<i32>>) -> Option<i32> {
     let mut pq = BinaryHeap::<State>::new();
     pq.push(State {
         dir: Dir::Start,
-        heatloss: -heatmap[0][0], // pre-ignore the first block heat
-        consecutive: 0,           // pre-ignore the first step
+        heatloss: 0,
+        consecutive: 0,
         y: 0,
         x: 0,
-        paths: vec![], // save paths chosen by dijkstra
     });
     while !pq.is_empty() {
         let state = pq.pop().unwrap();
-        // bound check
-        let (y, x) = (state.y, state.x);
-        if y < 0 || y >= h || x < 0 || x >= w {
-            continue;
-        }
-        println!("{y} {x}");
-        // can move only 4-10, handle 4 in the move generation
+        // println!("{state:?}");
         if state.consecutive > 10 {
             continue;
         }
-        // check visited, turns out you need to store consecutive direction and the direction too
         // https://www.reddit.com/r/adventofcode/comments/18kr07r/comment/kdtho4d/?utm_source=share&utm_medium=web2x&context=3
         if visited.contains(&(state.dir, state.consecutive, state.y, state.x)) {
             continue;
         }
         visited.insert((state.dir, state.consecutive, state.y, state.x));
-        println!("{y} {x}");
-        // add current block
-        let curr_heatloss = state.heatloss + heatmap[y as usize][x as usize];
-        let mut new_paths = state.paths;
-        new_paths.push((y, x));
-        // check finish
+        let (y, x) = (state.y, state.x);
         if (y, x) == finished {
-            // debug the chosen paths
-            // let mut temp = vec![vec![false; w as usize]; h as usize];
-            // for (cy, cx) in new_paths {
-            //     temp[cy as usize][cx as usize] = true;
-            // }
-            return Some(curr_heatloss);
+            return Some(state.heatloss);
         }
-        // add neighbors
+        // add neighbours
         for allowed_dir in state.dir.allowed_dirs() {
             let (dy, dx) = allowed_dir.dydx();
-            // if current walk is 4-10, you can go 1 by 1
-
-            let new_consecutive = if allowed_dir == state.dir {
-                state.consecutive + 1
-            } else {
+            let n_moves = if allowed_dir == state.dir && state.consecutive >= 4 {
                 1
+            } else {
+                4
             };
+            let new_consecutive = if allowed_dir == state.dir {
+                state.consecutive + n_moves
+            } else {
+                n_moves
+            };
+            let (new_y, new_x) = (y + dy * n_moves, x + dx * n_moves);
+            if !is_safe_bound(h, w, new_y, new_x) {
+                continue;
+            }
+            let mut extra_heatloss = 0;
+            for i in 1..=n_moves {
+                extra_heatloss += heatmap[(y + i * dy) as usize][(x + i * dx) as usize];
+            }
             let new_state = State {
                 dir: allowed_dir,
-                heatloss: curr_heatloss,
+                heatloss: state.heatloss + extra_heatloss,
                 consecutive: new_consecutive,
-                y: y + dy,
-                x: x + dx,
-                paths: new_paths.clone(),
+                y: new_y,
+                x: new_x,
             };
             pq.push(new_state);
         }
@@ -198,5 +179,18 @@ mod tests {
         );
         let result = solve(&content);
         assert_eq!(result, 71);
+    }
+
+    #[test]
+    fn test3() {
+        let content = String::from(
+            "11111
+99991
+99991
+99991
+99991",
+        );
+        let result = solve(&content);
+        assert_eq!(result, 8);
     }
 }
