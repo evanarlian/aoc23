@@ -32,16 +32,37 @@ struct Workflow {
     rules: Vec<Rule>,
 }
 
-#[derive(Default, Debug)]
-struct Part {
-    x: i64,
-    m: i64,
-    a: i64,
-    s: i64,
+#[derive(Debug, Clone, Copy)]
+struct PartRange {
+    x_from: i64,
+    x_to: i64,
+    m_from: i64,
+    m_to: i64,
+    a_from: i64,
+    a_to: i64,
+    s_from: i64,
+    s_to: i64,
 }
-impl Part {
-    fn xmas_sum(&self) -> i64 {
-        self.x + self.m + self.a + self.s
+impl Default for PartRange {
+    fn default() -> Self {
+        PartRange {
+            x_from: 1,
+            x_to: 4000,
+            m_from: 1,
+            m_to: 4000,
+            a_from: 1,
+            a_to: 4000,
+            s_from: 1,
+            s_to: 4000,
+        }
+    }
+}
+impl PartRange {
+    fn count_distinct(&self) -> i64 {
+        (self.x_to - self.x_from + 1)
+            * (self.m_to - self.m_from + 1)
+            * (self.a_to - self.a_from + 1)
+            * (self.s_to - self.s_from + 1)
     }
 }
 
@@ -98,42 +119,363 @@ fn parse(content: &String) -> HashMap<String, Workflow> {
     workflows
 }
 
-fn check_accepted(workflows: &HashMap<String, Workflow>, part: &Part) -> bool {
-    let mut curr_name = &String::from("in");
-    loop {
-        let curr_wf = &workflows[curr_name];
-        for rule in &curr_wf.rules {
-            match rule {
-                Rule::Evaluate(attr, comp, value, next_wf) => {
-                    let rule_accepted = match (attr, comp) {
-                        (Attr::X, Comp::Gt) => part.x > *value,
-                        (Attr::M, Comp::Gt) => part.m > *value,
-                        (Attr::A, Comp::Gt) => part.a > *value,
-                        (Attr::S, Comp::Gt) => part.s > *value,
-                        (Attr::X, Comp::Lt) => part.x < *value,
-                        (Attr::M, Comp::Lt) => part.m < *value,
-                        (Attr::A, Comp::Lt) => part.a < *value,
-                        (Attr::S, Comp::Lt) => part.s < *value,
-                    };
-                    if rule_accepted {
-                        match next_wf {
-                            WorkflowType::Accepted => return true,
-                            WorkflowType::Rejected => return false,
-                            WorkflowType::Continue(wf_name) => {
-                                curr_name = wf_name;
-                                break;
+fn count_all_accepted(
+    workflows: &HashMap<String, Workflow>,
+    wf_name: &String,
+    wf_idx: usize,
+    part_range: PartRange,
+) -> i64 {
+    let rule = &workflows[wf_name].rules[wf_idx];
+    match rule {
+        Rule::Immediate(wf_type) => match wf_type {
+            WorkflowType::Accepted => part_range.count_distinct(),
+            WorkflowType::Rejected => 0,
+            WorkflowType::Continue(next_wf) => {
+                count_all_accepted(workflows, next_wf, 0, part_range)
+            }
+        },
+        Rule::Evaluate(attr, comp, value, wf_type) => {
+            // after evaluation, there are 3 possible ways:
+            // (1) both from and to is contained in the rule, eg: 3-1200 with rule x<1500, resulting in going to new workflow
+            // (2) both from and to is NOT contained in the rule, eg: 500-3000 with rule x<100, resulting in continuing workflow
+            // (3) rule cuts in the middle of the ranges, eg: 300-1000 with rule x<500, resulting in (300-499) and (500-1000)
+            match (attr, comp) {
+                (Attr::X, Comp::Gt) => {
+                    if part_range.x_from > *value {
+                        // case (1)
+                        match wf_type {
+                            WorkflowType::Accepted => part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, part_range)
                             }
                         }
+                    } else if part_range.x_to <= *value {
+                        // case (2)
+                        count_all_accepted(workflows, wf_name, wf_idx + 1, part_range)
+                    } else {
+                        // case (3a) (contained part range)
+                        let contained_part_range = PartRange {
+                            x_from: *value + 1,
+                            x_to: part_range.x_to,
+                            ..part_range
+                        };
+                        let a = match wf_type {
+                            WorkflowType::Accepted => contained_part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, contained_part_range)
+                            }
+                        };
+                        // case (3b) (not contained part range)
+                        let not_contained_part_range = PartRange {
+                            x_from: part_range.x_from,
+                            x_to: *value,
+                            ..part_range
+                        };
+                        let b = count_all_accepted(
+                            workflows,
+                            wf_name,
+                            wf_idx + 1,
+                            not_contained_part_range,
+                        );
+                        a + b
                     }
                 }
-                Rule::Immediate(next_wf) => match next_wf {
-                    WorkflowType::Accepted => return true,
-                    WorkflowType::Rejected => return false,
-                    WorkflowType::Continue(wf_name) => {
-                        curr_name = wf_name;
-                        break;
+                (Attr::M, Comp::Gt) => {
+                    if part_range.m_from > *value {
+                        // case (1)
+                        match wf_type {
+                            WorkflowType::Accepted => part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, part_range)
+                            }
+                        }
+                    } else if part_range.m_to <= *value {
+                        // case (2)
+                        count_all_accepted(workflows, wf_name, wf_idx + 1, part_range)
+                    } else {
+                        // case (3a) (contained part range)
+                        let contained_part_range = PartRange {
+                            m_from: *value + 1,
+                            m_to: part_range.m_to,
+                            ..part_range
+                        };
+                        let a = match wf_type {
+                            WorkflowType::Accepted => contained_part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, contained_part_range)
+                            }
+                        };
+                        // case (3b) (not contained part range)
+                        let not_contained_part_range = PartRange {
+                            m_from: part_range.m_from,
+                            m_to: *value,
+                            ..part_range
+                        };
+                        let b = count_all_accepted(
+                            workflows,
+                            wf_name,
+                            wf_idx + 1,
+                            not_contained_part_range,
+                        );
+                        a + b
                     }
-                },
+                }
+                (Attr::A, Comp::Gt) => {
+                    if part_range.a_from > *value {
+                        // case (1)
+                        match wf_type {
+                            WorkflowType::Accepted => part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, part_range)
+                            }
+                        }
+                    } else if part_range.a_to <= *value {
+                        // case (2)
+                        count_all_accepted(workflows, wf_name, wf_idx + 1, part_range)
+                    } else {
+                        // case (3a) (contained part range)
+                        let contained_part_range = PartRange {
+                            a_from: *value + 1,
+                            a_to: part_range.a_to,
+                            ..part_range
+                        };
+                        let a = match wf_type {
+                            WorkflowType::Accepted => contained_part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, contained_part_range)
+                            }
+                        };
+                        // case (3b) (not contained part range)
+                        let not_contained_part_range = PartRange {
+                            a_from: part_range.a_from,
+                            a_to: *value,
+                            ..part_range
+                        };
+                        let b = count_all_accepted(
+                            workflows,
+                            wf_name,
+                            wf_idx + 1,
+                            not_contained_part_range,
+                        );
+                        a + b
+                    }
+                }
+                (Attr::S, Comp::Gt) => {
+                    if part_range.s_from > *value {
+                        // case (1)
+                        match wf_type {
+                            WorkflowType::Accepted => part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, part_range)
+                            }
+                        }
+                    } else if part_range.s_to <= *value {
+                        // case (2)
+                        count_all_accepted(workflows, wf_name, wf_idx + 1, part_range)
+                    } else {
+                        // case (3a) (contained part range)
+                        let contained_part_range = PartRange {
+                            s_from: *value + 1,
+                            s_to: part_range.s_to,
+                            ..part_range
+                        };
+                        let a = match wf_type {
+                            WorkflowType::Accepted => contained_part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, contained_part_range)
+                            }
+                        };
+                        // case (3b) (not contained part range)
+                        let not_contained_part_range = PartRange {
+                            s_from: part_range.s_from,
+                            s_to: *value,
+                            ..part_range
+                        };
+                        let b = count_all_accepted(
+                            workflows,
+                            wf_name,
+                            wf_idx + 1,
+                            not_contained_part_range,
+                        );
+                        a + b
+                    }
+                }
+                (Attr::X, Comp::Lt) => {
+                    if part_range.x_to < *value {
+                        // case (1)
+                        match wf_type {
+                            WorkflowType::Accepted => part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, part_range)
+                            }
+                        }
+                    } else if part_range.x_from >= *value {
+                        // case (2)
+                        count_all_accepted(workflows, wf_name, wf_idx + 1, part_range)
+                    } else {
+                        // case (3a) (contained part range)
+                        let contained_part_range = PartRange {
+                            x_from: part_range.x_from,
+                            x_to: *value - 1,
+                            ..part_range
+                        };
+                        let a = match wf_type {
+                            WorkflowType::Accepted => contained_part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, contained_part_range)
+                            }
+                        };
+                        // case (3b) (not contained part range)
+                        let not_contained_part_range = PartRange {
+                            x_from: *value,
+                            x_to: part_range.x_to,
+                            ..part_range
+                        };
+                        let b = count_all_accepted(
+                            workflows,
+                            wf_name,
+                            wf_idx + 1,
+                            not_contained_part_range,
+                        );
+                        a + b
+                    }
+                }
+                (Attr::M, Comp::Lt) => {
+                    if part_range.m_to < *value {
+                        // case (1)
+                        match wf_type {
+                            WorkflowType::Accepted => part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, part_range)
+                            }
+                        }
+                    } else if part_range.m_from >= *value {
+                        // case (2)
+                        count_all_accepted(workflows, wf_name, wf_idx + 1, part_range)
+                    } else {
+                        // case (3a) (contained part range)
+                        let contained_part_range = PartRange {
+                            m_from: part_range.m_from,
+                            m_to: *value - 1,
+                            ..part_range
+                        };
+                        let a = match wf_type {
+                            WorkflowType::Accepted => contained_part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, contained_part_range)
+                            }
+                        };
+                        // case (3b) (not contained part range)
+                        let not_contained_part_range = PartRange {
+                            m_from: *value,
+                            m_to: part_range.m_to,
+                            ..part_range
+                        };
+                        let b = count_all_accepted(
+                            workflows,
+                            wf_name,
+                            wf_idx + 1,
+                            not_contained_part_range,
+                        );
+                        a + b
+                    }
+                }
+                (Attr::A, Comp::Lt) => {
+                    if part_range.a_to < *value {
+                        // case (1)
+                        match wf_type {
+                            WorkflowType::Accepted => part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, part_range)
+                            }
+                        }
+                    } else if part_range.a_from >= *value {
+                        // case (2)
+                        count_all_accepted(workflows, wf_name, wf_idx + 1, part_range)
+                    } else {
+                        // case (3a) (contained part range)
+                        let contained_part_range = PartRange {
+                            a_from: part_range.a_from,
+                            a_to: *value - 1,
+                            ..part_range
+                        };
+                        let a = match wf_type {
+                            WorkflowType::Accepted => contained_part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, contained_part_range)
+                            }
+                        };
+                        // case (3b) (not contained part range)
+                        let not_contained_part_range = PartRange {
+                            a_from: *value,
+                            a_to: part_range.a_to,
+                            ..part_range
+                        };
+                        let b = count_all_accepted(
+                            workflows,
+                            wf_name,
+                            wf_idx + 1,
+                            not_contained_part_range,
+                        );
+                        a + b
+                    }
+                }
+                (Attr::S, Comp::Lt) => {
+                    if part_range.s_to < *value {
+                        // case (1)
+                        match wf_type {
+                            WorkflowType::Accepted => part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, part_range)
+                            }
+                        }
+                    } else if part_range.s_from >= *value {
+                        // case (2)
+                        count_all_accepted(workflows, wf_name, wf_idx + 1, part_range)
+                    } else {
+                        // case (3a) (contained part range)
+                        let contained_part_range = PartRange {
+                            s_from: part_range.s_from,
+                            s_to: *value - 1,
+                            ..part_range
+                        };
+                        let a = match wf_type {
+                            WorkflowType::Accepted => contained_part_range.count_distinct(),
+                            WorkflowType::Rejected => 0,
+                            WorkflowType::Continue(next_wf) => {
+                                count_all_accepted(workflows, next_wf, 0, contained_part_range)
+                            }
+                        };
+                        // case (3b) (not contained part range)
+                        let not_contained_part_range = PartRange {
+                            s_from: *value,
+                            s_to: part_range.s_to,
+                            ..part_range
+                        };
+                        let b = count_all_accepted(
+                            workflows,
+                            wf_name,
+                            wf_idx + 1,
+                            not_contained_part_range,
+                        );
+                        a + b
+                    }
+                }
             }
         }
     }
@@ -141,17 +483,16 @@ fn check_accepted(workflows: &HashMap<String, Workflow>, part: &Part) -> bool {
 
 fn solve(content: &String) -> i64 {
     let workflows = parse(content);
-    for (name, wf) in &workflows {
-        println!("{name} => {wf:?}");
-    }
-    let mut total = 0;
-    total
+    // for (name, wf) in &workflows {
+    //     println!("{name} => {wf:?}");
+    // }
+    count_all_accepted(&workflows, &String::from("in"), 0, PartRange::default())
 }
 
 fn main() {
     let content = fs::read_to_string("inputs/day19.txt").expect("input for day 19 is missing");
     let result = solve(&content);
-    println!("day 19 part 1: {}", result);
+    println!("day 19 part 2: {}", result);
 }
 
 #[cfg(test)]
