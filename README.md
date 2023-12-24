@@ -1,5 +1,5 @@
 # [Advent of Code 2023](https://adventofcode.com/2023)
-Each challenge is separated into different files. To run,
+Each challenge is separated into different files. To run, put input files to e.g. `inputs/day01.txt` and run with:
 ```bash
 # example
 cargo test --bin day01_1
