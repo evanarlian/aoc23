@@ -73,13 +73,11 @@ fn walk(
         }
     }
     visited[y as usize][x as usize] = false;
-    // if let Some(l) = longest {
-    //     println!("found longest {l}");
-    // }
     longest
 }
 
 fn solve(content: &String) -> i32 {
+    // NOTE: a better implementation probably can turn the map grid to a graph, skipping boring straight paths
     let map = parse(content);
     let (h, w) = (map.len() as i32, map[0].len() as i32);
     let (tgt_y, tgt_x) = (h - 1, w - 2);
