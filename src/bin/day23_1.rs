@@ -95,9 +95,9 @@ fn solve(content: &String) -> i32 {
 }
 
 fn main() {
-    let content = fs::read_to_string("inputs/day23.txt").expect("input for day 21 is missing");
+    let content = fs::read_to_string("inputs/day23.txt").expect("input for day 23 is missing");
     let result = solve(&content);
-    println!("day 23 part 1 {result}");
+    println!("day 23 part 1: {result}");
 }
 
 #[cfg(test)]
