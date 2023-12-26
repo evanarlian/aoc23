@@ -1,5 +1,7 @@
 use std::{cmp::max, fs};
 
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 struct Brick {
     x0: i32,
@@ -120,14 +122,26 @@ fn solve(content: &String) -> i32 {
     // println!();
     wall.drop_all();
     // wall.print();
-    let mut falling_blocks = 0;
-    for i in 0..wall.bricks.len() {
-        // println!("{i}");
-        let mut experiment = wall.clone();
-        experiment.drop_all_ignore(i);
-        falling_blocks += experiment.count_differences(&wall);
-    }
-    falling_blocks
+
+    // VIRGIN SINGLE CORE
+    // (0..wall.bricks.len())
+    //     .into_iter()
+    //     .map(|i| {
+    //         let mut experiment = wall.clone();
+    //         experiment.drop_all_ignore(i);
+    //         experiment.count_differences(&wall)
+    //     })
+    //     .sum()
+
+    // CHAD MULTI CORE RAYON
+    (0..wall.bricks.len())
+        .into_par_iter()
+        .map(|i| {
+            let mut experiment = wall.clone();
+            experiment.drop_all_ignore(i);
+            experiment.count_differences(&wall)
+        })
+        .sum()
 }
 
 fn main() {
